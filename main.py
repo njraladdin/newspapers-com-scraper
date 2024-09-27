@@ -14,8 +14,16 @@ from aiohttp import ClientError, ClientResponseError
 import time 
 from dotenv import load_dotenv
 
-CONCURRENT_PAGES = 10
+
+
+# Number of pages to scrape concurrently. Increase for faster scraping, but be mindful of potential server load on newspapers.com which pushes them to increase scraping security
+CONCURRENT_PAGES = 10 
+
+# Number of search results to fetch per page. 
 RESULTS_PER_PAGE = 50
+
+# Maximum number of concurrent requests for fetching keyword match counts. 
+# Increase for faster processing, but be mindful of potential server load on newspapers.com which pushes them to increase scraping security
 KEYWORD_MATCHES_MAX_CONCURRENT_REQUESTS = 20
 
 load_dotenv()
@@ -266,9 +274,6 @@ async def scrape_single_page(context, page_num, params, keyword):
         return None
     finally:
         await page.close()
-
-
-
 
 
 
