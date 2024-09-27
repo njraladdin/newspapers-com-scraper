@@ -320,7 +320,7 @@ async def main():
             output_file="elon_musk_results",
             date=[2023],
             location="us",
-            max_pages=None
+            max_pages=20
         )
         print(f"Total records scraped: {len(result)}")
         print("Scraping completed")

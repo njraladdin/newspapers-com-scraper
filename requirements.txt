@@ -1,13 +1,5 @@
-asyncio
 aiohttp
-playwright
-json
-csv
 urllib3
-math
-typing
-os
-traceback
-random
 requests
+playwright
 python-dotenv
