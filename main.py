@@ -52,10 +52,13 @@ async def get_keyword_match_count(image_id, keyword, max_retries=5):
                         return image_id, "ERROR"
 
         except aiohttp.ClientError as e:
-            #print(f"Client error for image {image_id} (Attempt {attempt + 1}/{max_retries}): {str(e)}")
-            continue
+            # print(f"Client error for image {image_id} (Attempt {attempt + 1}/{max_retries}): {str(e)}")
+            pass
+            
         except Exception as e:
-            print(f"General error for image {image_id} (Attempt {attempt + 1}/{max_retries}): {str(e)}")
+            # print(f"General error for image {image_id} (Attempt {attempt + 1}/{max_retries}): {str(e)}")
+            pass
+            
 
         if attempt < max_retries - 1:
             await asyncio.sleep(random.uniform(1, 3))  # Exponential backoff with jitter
@@ -90,7 +93,8 @@ async def get_keyword_matches_for_search_results(search_results, keyword):
                 successful_requests += 1
 
     success_rate = (successful_requests / len(search_results)) * 100 if search_results else 0
-    print(f"Got {len(search_results)} keyword matches : {keyword_match_counts}. Success rate: {success_rate:.2f}%")
+    print(f"Got {len(search_results)} keyword matches. Success rate: {success_rate:.2f}%")
+    #print(f"keyword matches : {keyword_match_counts}")
     return search_results
 
 
