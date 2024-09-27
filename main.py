@@ -14,23 +14,20 @@ from aiohttp import ClientError, ClientResponseError
 import time 
 from dotenv import load_dotenv
 
-
+CONCURRENT_PAGES = 10
 RESULTS_PER_PAGE = 50
 KEYWORD_MATCHES_MAX_CONCURRENT_REQUESTS = 20
 
-# Import necessary packages
-
-# Load environment variables from .env file
 load_dotenv()
 
-# Proxy settings as a constant
 PROXY_SETTINGS = {
     'host': os.getenv('PROXY_HOST'),
-    'port': os.getenv('PROXY_PORT'),
+    'port': 9008,
     'username': os.getenv('PROXY_USER'),
     'password': os.getenv('PROXY_PASS')
 }
 
+print(PROXY_SETTINGS)
 
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36'
 
@@ -133,7 +130,7 @@ async def scrape_newspapers(
 
         while True:
             tasks = []
-            for _ in range(10):
+            for _ in range(CONCURRENT_PAGES):
                 if max_pages and page_count >= max_pages:
                     break
 
@@ -229,7 +226,6 @@ async def scrape_single_page(context, page_num, params, keyword):
                 print(f"Cloudflare challenge on page {page_num}. Retry {retries + 1}/{max_retries}.")
                 retries += 1
                 await context.clear_cookies()
-                await context.clear_storage()
                 await page.close()
                 page = await context.new_page()
                 continue  # Retry the request
