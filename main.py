@@ -14,17 +14,11 @@ from aiohttp import ClientError, ClientResponseError
 import time 
 from dotenv import load_dotenv
 
-
-
-# Number of pages to scrape concurrently. Increase for faster scraping, but be mindful of potential server load on newspapers.com which pushes them to increase scraping security
-CONCURRENT_PAGES = 10 
-
-# Number of search results to fetch per page. 
+CONCURRENT_PAGES = 10
 RESULTS_PER_PAGE = 50
-
-# Maximum number of concurrent requests for fetching keyword match counts. 
-# Increase for faster processing, but be mindful of potential server load on newspapers.com which pushes them to increase scraping security
 KEYWORD_MATCHES_MAX_CONCURRENT_REQUESTS = 20
+START_TIME = time.time()
+PAGE_TIMES = []
 
 load_dotenv()
 
@@ -60,13 +54,10 @@ async def get_keyword_match_count(image_id, keyword, max_retries=5):
                         return image_id, "ERROR"
 
         except aiohttp.ClientError as e:
-            # print(f"Client error for image {image_id} (Attempt {attempt + 1}/{max_retries}): {str(e)}")
-            pass
-            
+            #print(f"Client error for image {image_id} (Attempt {attempt + 1}/{max_retries}): {str(e)}")
+            continue
         except Exception as e:
-            # print(f"General error for image {image_id} (Attempt {attempt + 1}/{max_retries}): {str(e)}")
-            pass
-            
+            print(f"General error for image {image_id} (Attempt {attempt + 1}/{max_retries}): {str(e)}")
 
         if attempt < max_retries - 1:
             await asyncio.sleep(random.uniform(1, 3))  # Exponential backoff with jitter
@@ -101,8 +92,7 @@ async def get_keyword_matches_for_search_results(search_results, keyword):
                 successful_requests += 1
 
     success_rate = (successful_requests / len(search_results)) * 100 if search_results else 0
-    print(f"Got {len(search_results)} keyword matches. Success rate: {success_rate:.2f}%")
-    #print(f"keyword matches : {keyword_match_counts}")
+    print(f"Got {len(search_results)} keyword matches : {keyword_match_counts}. Success rate: {success_rate:.2f}%")
     return search_results
 
 
@@ -119,6 +109,7 @@ async def scrape_newspapers(
     all_records = []
     page_count = 0
     total_pages = 1  # Placeholder until we get actual total pages
+    last_start_value = "*"  # Initialize with "*" for the first page
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -141,6 +132,7 @@ async def scrape_newspapers(
         await context.route("**/*", lambda route: route.continue_())
 
         while True:
+            batch_start_time = time.time()
             tasks = []
             for _ in range(CONCURRENT_PAGES):
                 if max_pages and page_count >= max_pages:
@@ -148,7 +140,7 @@ async def scrape_newspapers(
 
                 params = {
                     "keyword": keyword,
-                    "start": str(page_count * RESULTS_PER_PAGE),
+                    "start": last_start_value,
                     "entity-types": "page,obituary,marriage,birth,enslavement",
                     "product": "1",
                     "sort": "score-desc",
@@ -185,6 +177,10 @@ async def scrape_newspapers(
 
             batch_results = await asyncio.gather(*tasks)
 
+            batch_end_time = time.time()
+            batch_duration = batch_end_time - batch_start_time
+            PAGE_TIMES.extend([batch_duration / len(tasks)] * len(tasks))
+
             valid_results = [result for result in batch_results if result is not None]
             
             if not valid_results:
@@ -193,6 +189,8 @@ async def scrape_newspapers(
 
             for result in valid_results:
                 all_records.extend(result['records_with_matches'])
+                if 'nextStart' in result:
+                    last_start_value = result['nextStart']
 
             if valid_results:
                 record_count = valid_results[0]['recordCount']
@@ -210,6 +208,10 @@ async def scrape_newspapers(
             if page_count >= total_pages:
                 break
 
+            if last_start_value is None:
+                print("Reached the end of results.")
+                break
+
             print(f"Batch completed. Total records collected: {len(all_records)}")
 
         await browser.close()
@@ -224,56 +226,67 @@ async def scrape_newspapers(
 async def scrape_single_page(context, page_num, params, keyword):
     retries = 0
     max_retries = 3
-    page = await context.new_page()
-    try:
-        while retries < max_retries:
-            url = f"https://www.newspapers.com/api/search/query?{urlencode(params)}"
-            print(f"Fetching search results page {page_num}")
+    page = None
+    
+    while retries < max_retries:
+        try:
+            if page is None:
+                page = await context.new_page()
 
+            url = f"https://www.newspapers.com/api/search/query?{urlencode(params)}"
+            print(f"Fetching search results page {page_num} (Attempt {retries + 1}/{max_retries})")
+            
             await asyncio.sleep(random.uniform(1, 3))
             response = await page.goto(url, wait_until="domcontentloaded")
 
             # Check for Cloudflare challenge
             if await page.locator("text=Verifying you are human").count() > 0:
-                print(f"Cloudflare challenge on page {page_num}. Retry {retries + 1}/{max_retries}.")
-                retries += 1
+                raise Exception("Cloudflare challenge detected")
+
+            result = await response.json()
+            records = result.get('records', [])
+            
+            if not records:
+                raise Exception("No records found")
+
+            print(f"Page {page_num} received {len(records)} records.")
+            
+            # Process keyword matches
+            records_with_matches = await get_keyword_matches_for_search_results(records, keyword)
+            return {
+                'records_with_matches': records_with_matches,
+                'recordCount': result.get('recordCount', 0),
+                'nextStart': result.get('nextStart')
+            }
+
+        except Exception as e:
+            retries += 1
+            error_message = str(e)
+            
+            if "Cloudflare challenge detected" in error_message:
+                print(f"Cloudflare challenge on page {page_num}. Retry {retries}/{max_retries}.")
                 await context.clear_cookies()
+            elif "No records found" in error_message:
+                print(f"No records found on page {page_num}. Retry {retries}/{max_retries}.")
+            elif "JSON" in error_message:
+                print(f"Failed to decode JSON on page {page_num}. Retry {retries}/{max_retries}.")
+            else:
+                print(f"Error in scraping page {page_num}: {error_message}. Retry {retries}/{max_retries}.")
+
+            if page:
                 await page.close()
-                page = await context.new_page()
-                continue  # Retry the request
+                page = None
 
-            try:
-                # Parse the response and process the records
-                result = await response.json()
-                records = result.get('records', [])
-                
-                if not records:
-                    print(f"No records found on page {page_num}. Retry {retries + 1}/{max_retries}.")
-                    retries += 1
-                    await asyncio.sleep(random.uniform(2, 5))  # Wait before retrying
-                    continue
-
-                print(f"Page {page_num} received {len(records)} records.")
-                
-                # Process keyword matches
-                records_with_matches = await get_keyword_matches_for_search_results(records, keyword)
-                return {
-                    'records_with_matches': records_with_matches,
-                    'recordCount': result.get('recordCount', 0)
-                }
-            except json.JSONDecodeError:
-                print(f"Failed to decode JSON on page {page_num}. Retry {retries + 1}/{max_retries}.")
-                retries += 1
+            if retries < max_retries:
                 await asyncio.sleep(random.uniform(2, 5))  # Wait before retrying
-                continue
+            else:
+                print(f"Failed to fetch page {page_num} after {max_retries} retries.")
+                return None
 
-        print(f"Failed to fetch page {page_num} after {max_retries} retries.")
-        return None
-    except Exception as e:
-        print(f"Error in scraping page {page_num}: {str(e)}")
-        return None
-    finally:
-        await page.close()
+    return None  # This line should never be reached, but it's here for completeness
+
+
+
 
 
 
@@ -315,7 +328,6 @@ def format_and_save_records(all_records, output_file, total_records):
     print(f"Total records scraped: {total_records}")
     return formatted_records
 
-
 async def main():
     print("Starting script execution")
     
@@ -325,7 +337,7 @@ async def main():
             output_file="elon_musk_results",
             date=[2023],
             location="us",
-            max_pages=20
+            max_pages=None
         )
         print(f"Total records scraped: {len(result)}")
         print("Scraping completed")
@@ -333,8 +345,19 @@ async def main():
         print(f"An error occurred in main: {str(e)}")
         print(traceback.format_exc())
     
-    print("Script execution finished")
-
+    # Add timing information
+    end_time = time.time()
+    total_duration = end_time - START_TIME
+    avg_page_duration = sum(PAGE_TIMES) / len(PAGE_TIMES) if PAGE_TIMES else 0
+    
+    print("\n--- Scraping Statistics ---")
+    print(f"Total execution time: {total_duration:.2f} seconds")
+    print(f"Total pages scraped: {len(PAGE_TIMES)}")
+    print(f"Average time per page (50 results): {avg_page_duration:.2f} seconds")
+    print(f"Total records scraped: {len(result)}")
+    print(f"Records per second: {len(result) / total_duration:.2f}")
+    print(f"Pages per minute: {(len(PAGE_TIMES) / total_duration) * 60:.2f}")
+    print("---------------------------")
 
 if __name__ == "__main__":
     asyncio.run(main())
