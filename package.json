@@ -1,7 +1,7 @@
 {
   "name": "newspapers-com-scraper",
-  "version": "1.0.0",
-  "description": "A robust scraper for newspapers.com with concurrent processing support",
+  "version": "1.0.1",
+  "description": "A robust scraper for newspapers.com with keyword matching and date range support",
   "main": "index.js",
   "files": [
     "lib/",
