@@ -1,6 +1,6 @@
 {
   "name": "newspapers-com-scraper",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A robust scraper for newspapers.com with keyword matching and date range support",
   "main": "index.js",
   "files": [
