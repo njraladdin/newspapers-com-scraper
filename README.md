@@ -2,6 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/newspapers-com-scraper.svg)](https://badge.fury.io/js/newspapers-com-scraper)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![npm total downloads](https://img.shields.io/npm/dt/newspapers-com-scraper.svg)](https://www.npmjs.com/package/newspapers-com-scraper)
 
 A Node.js scraper for extracting article data from Newspapers.com based on keywords, dates, and locations.
 
