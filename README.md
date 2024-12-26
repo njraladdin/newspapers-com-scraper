@@ -6,6 +6,17 @@
 
 A Node.js scraper for extracting article data from Newspapers.com based on keywords, dates, and locations.
 
+```javascript
+const scraper = new NewspaperScraper();
+
+await scraper.retrieve({
+    keyword: "elon musk twitter",
+    limit: 500,
+    dateRange: [2020, 2024],
+    location: "us"
+});
+```
+
 ## What it Does
 
 Searches Newspapers.com and extracts:
@@ -27,11 +38,7 @@ Searches Newspapers.com and extracts:
 ## Installation
 
 ```bash
-# Using npm
 npm install newspapers-com-scraper
-
-# Using yarn
-yarn add newspapers-com-scraper
 ```
 
 ## Basic Usage
@@ -47,12 +54,12 @@ async function main() {
         console.log(`Found: ${article.title} (${article.date})`);
     });
 
-    await scraper.scrapeNewspapers(
-        "elon musk",     // keyword
-        10,              // max pages (null for all)
-        [2023, 2024],    // date range
-        "us"            // location
-    );
+    await scraper.retrieve({
+        keyword: "elon musk twitter",  // Required: search term
+        limit: 500,                    // Optional: limit total results
+        dateRange: [2020, 2024],       // Optional: date range
+        location: "us"                 // Optional: location code
+    });
 }
 ```
 
@@ -130,6 +137,13 @@ const scraper = new NewspaperScraper({
         level: 'info',        // 'error' | 'warn' | 'info' | 'debug' | 'silent'
         custom: null          // Custom logger
     }
+});
+
+await scraper.retrieve({
+    keyword: "elon musk twitter",
+    limit: 500,
+    dateRange: [2020, 2024],
+    location: "us"
 });
 
 // If using proxy, set up .env:

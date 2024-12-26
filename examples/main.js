@@ -1,4 +1,4 @@
-const NewspaperScraper = require('./scrapeNewspapers');
+const NewspaperScraper = require('../lib/NewspaperScraper');
 const fs = require('fs').promises;
 const path = require('path');
 const dotenv = require('dotenv');
@@ -38,6 +38,7 @@ async function main() {
 
         // Handle found articles
         scraper.on('article', async (article) => {
+            // Save each article to a file (optional)
             await fs.mkdir('output', { recursive: true });
             const filename = `article_${Date.now()}.json`;
             await fs.writeFile(
@@ -57,16 +58,16 @@ async function main() {
         // Handle completion
         scraper.on('complete', (stats) => {
             console.log('Scraping complete!');
-            console.log(`Total time: ${stats.timeElapsed.toFixed(2)} seconds`);
+            console.log(`Total time: ${(stats.timeElapsed / 1000).toFixed(2)} seconds`);
         });
 
-        // Start scraping with all parameters
-        await scraper.scrapeNewspapers(
-            "elon musk twitter",  // keyword to search
-            10,                   // limit to 10 pages (null for all pages)
-            [2023, 2024],        // date range [start, end] or [specific year]
-            "us"                 // location (e.g., "us", "us-ca", "gb")
-        );
+        // Start retrieving with the new API name
+        await scraper.retrieve({
+            keyword: "elon musk twitter",  // Required: search term
+            limit: 500,                    // Optional: limit total results
+            dateRange: [2020, 2024],       // Optional: date range [start, end] or [specific year]
+            location: "us"                 // Optional: location code (e.g., "us", "us-ca", "gb")
+        });
 
     } catch (error) {
         console.error('Scraping failed:', error);
